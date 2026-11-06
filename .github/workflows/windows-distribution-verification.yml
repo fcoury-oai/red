@@ -38,6 +38,7 @@ jobs:
           $result = & $red --self-check
           if ($result[-1] -ne 'red self-check ok') { throw 'Red self-check failed' }
           Write-Output $result[-1]
+          winget source remove --name msstore
           winget uninstall --id Codersauce.Red --exact --disable-interactivity
   scoop:
     runs-on: windows-2025
