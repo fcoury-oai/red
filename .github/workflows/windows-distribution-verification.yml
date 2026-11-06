@@ -12,9 +12,19 @@ jobs:
       - name: Install current WinGet
         shell: pwsh
         run: |
-          Install-Module Microsoft.WinGet.Client -Scope CurrentUser -Force -Repository PSGallery
-          Repair-WinGetPackageManager -AllUsers -Force -Latest
-          winget --info
+          $ErrorActionPreference = 'Stop'
+          $base = 'https://github.com/microsoft/winget-cli/releases/download/v1.29.380'
+          $work = Join-Path $env:RUNNER_TEMP 'winget-release'
+          New-Item -ItemType Directory -Path $work | Out-Null
+          Invoke-WebRequest "$base/DesktopAppInstaller_Dependencies.zip" -OutFile "$work/deps.zip"
+          Expand-Archive "$work/deps.zip" "$work/deps"
+          $deps = @(Get-ChildItem "$work/deps" -Recurse -File -Include *.appx,*.msix | Where-Object FullName -match '[\\/]x64[\\/]')
+          foreach ($dep in $deps) { Add-AppxPackage -Path $dep.FullName -ForceUpdateFromAnyVersion }
+          Invoke-WebRequest "$base/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -OutFile "$work/winget.msixbundle"
+          Add-AppxPackage -Path "$work/winget.msixbundle" -ForceApplicationShutdown -ForceUpdateFromAnyVersion
+          $install = (Get-AppxPackage Microsoft.DesktopAppInstaller).InstallLocation
+          $install | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & "$install/winget.exe" --info
       - name: Install, run, and uninstall Red
         shell: pwsh
         run: |
