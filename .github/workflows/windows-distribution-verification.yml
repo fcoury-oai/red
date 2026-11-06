@@ -39,7 +39,11 @@ jobs:
           if ($result[-1] -ne 'red self-check ok') { throw 'Red self-check failed' }
           Write-Output $result[-1]
           winget source remove --name msstore
-          winget uninstall --id Codersauce.Red --exact --disable-interactivity
+          $entry = Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty | Where-Object { $_.DisplayName -eq 'Red Editor' -or $_.WinGetPackageIdentifier -eq 'Codersauce.Red' }
+          if (-not $entry) { throw 'Red uninstall registration missing' }
+          Write-Output "Registered package $($entry.PSChildName)"
+          winget uninstall --product-code $entry.PSChildName --disable-interactivity
+          if (Test-Path $red) { throw 'Alias remained after uninstall' }
   scoop:
     runs-on: windows-2025
     steps:
