@@ -1,0 +1,49 @@
+name: Verify Windows distribution packages
+on:
+  push:
+    branches: [verify-red-packages-0.11.1]
+permissions:
+  contents: read
+jobs:
+  winget:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install current WinGet
+        shell: pwsh
+        run: |
+          Install-Module Microsoft.WinGet.Client -Scope CurrentUser -Force -Repository PSGallery
+          Repair-WinGetPackageManager -AllUsers -Force -Latest
+          winget --info
+      - name: Install, run, and uninstall Red
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          winget validate --manifest verify/winget
+          winget settings --enable LocalManifestFiles
+          winget install --manifest verify/winget --scope user --accept-package-agreements --accept-source-agreements --disable-interactivity
+          $red = "$env:LOCALAPPDATA\Microsoft\WinGet\Links\red-editor.exe"
+          if ((& $red --version) -ne 'red 0.11.1') { throw 'Unexpected version' }
+          $result = & $red --self-check
+          if ($result[-1] -ne 'red self-check ok') { throw 'Red self-check failed' }
+          Write-Output $result[-1]
+          winget uninstall --id Codersauce.Red --exact --disable-interactivity
+  scoop:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install, run, and uninstall Red
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          irm https://get.scoop.sh -OutFile "$env:RUNNER_TEMP\scoop-install.ps1"
+          & "$env:RUNNER_TEMP\scoop-install.ps1" -RunAsAdmin
+          $env:Path = "$env:USERPROFILE\scoop\shims;$env:Path"
+          scoop install .\bucket\red-editor.json
+          if ($LASTEXITCODE -ne 0) { throw 'Scoop installation failed' }
+          if ((red-editor --version) -ne 'red 0.11.1') { throw 'Unexpected version' }
+          $result = red-editor --self-check
+          if ($LASTEXITCODE -ne 0 -or $result[-1] -ne 'red self-check ok') { throw 'Red self-check failed' }
+          Write-Output $result[-1]
+          scoop uninstall red-editor
